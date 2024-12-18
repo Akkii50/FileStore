@@ -1,0 +1,3 @@
+spring.application.name=FileStorage
+server:
+   port: 9085

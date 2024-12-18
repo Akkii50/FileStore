@@ -1,0 +1,117 @@
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.file.Files;
+
+public class FileStoreClient {
+	private static final String BASE_URL = "http://localhost:8080/store";
+	public static void main(String[] args) throws IOException {
+		if (args.length < 2) {
+            System.out.println("Usage: java FileStoreClient <command> <file>");
+            return;
+        }
+
+        String command = args[0];
+        String filePath = args[1];
+
+        switch (command) {
+            case "add":
+                addFile(filePath);
+                break;
+            case "ls":
+                listFiles();
+                break;
+            case "rm":
+                removeFile(filePath);
+                break;
+            case "update":
+                updateFile(filePath);
+                break;
+            default:
+                System.out.println("Unknown command");
+        }
+
+	}
+
+	private static void addFile(String filePath) throws IOException {
+        File file = new File(filePath);
+        System.out.println(filePath);
+        if (!file.exists()) {
+            System.out.println("File not found");
+            return;
+        }
+
+        HttpURLConnection connection = (HttpURLConnection) new URL(BASE_URL + "/add").openConnection();
+        connection.setDoOutput(true);
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=---Boundary");
+        System.out.println(connection.getURL());
+        try (OutputStream os = connection.getOutputStream();
+             PrintWriter writer = new PrintWriter(new OutputStreamWriter(os, "UTF-8"))) {
+            writer.append("---Boundary\r\n");
+            writer.append("Content-Disposition: form-data; name=\"file\"; filename=\"" + file.getName() + "\"\r\n");
+            writer.append("Content-Type: text/plain\r\n\r\n");
+            writer.flush();
+            Files.copy(file.toPath(), os);
+            writer.append("\r\n---Boundary--\r\n");
+            writer.flush();
+        }
+
+        int responseCode = connection.getResponseCode();
+        System.out.println("Response Code: " + responseCode);
+    }
+
+    private static void listFiles() throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(BASE_URL + "/ls").openConnection();
+        connection.setRequestMethod("GET");
+
+        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+        String inputLine;
+        while ((inputLine = in.readLine()) != null) {
+            System.out.println(inputLine);
+        }
+        in.close();
+    }
+
+    private static void removeFile(String filename) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(BASE_URL + "/rm/" + filename).openConnection();
+        connection.setRequestMethod("DELETE");
+
+        int responseCode = connection.getResponseCode();
+        System.out.println("Response Code: " + responseCode);
+    }
+
+    private static void updateFile(String filePath) throws IOException {
+        File file = new File(filePath);
+        if (!file.exists()) {
+            System.out.println("File not found");
+            return;
+        }
+
+        HttpURLConnection connection = (HttpURLConnection) new URL(BASE_URL + "/update").openConnection();
+        connection.setDoOutput(true);
+        connection.setRequestMethod("PUT");
+        connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=---Boundary");
+
+        try (OutputStream os = connection.getOutputStream();
+             PrintWriter writer = new PrintWriter(new OutputStreamWriter(os, "UTF-8"))) {
+            writer.append("---Boundary\r\n");
+            writer.append("Content-Disposition: form-data; name=\"file\"; filename=\"" + file.getName() + "\"\r\n");
+            writer.append("Content-Type: text/plain\r\n\r\n");
+            writer.flush();
+            Files.copy(file.toPath(), os);
+            writer.append("\r\n---Boundary--\r\n");
+            writer.flush();
+        }
+
+        int responseCode = connection.getResponseCode();
+        System.out.println("Response Code: " + responseCode);
+    }
+	
+}
